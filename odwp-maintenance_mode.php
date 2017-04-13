@@ -81,7 +81,7 @@ if ( ! function_exists( 'odwpmm_customize_register' ) ) :
         $wp_customize->add_section( ODWPMM_SLUG . '-section1', [
             'title' => __( 'Hlavní nastavení', ODWPMM_SLUG ),
             'panel' => ODWPMM_SLUG . '-panel',
-        ] );, ODWPMM_SLUG )
+        ] );
         $wp_customize->add_section( ODWPMM_SLUG . '-section2', [
             'title' => __( 'Pozadí stránky', ODWPMM_SLUG ),
             'panel' => ODWPMM_SLUG . '-panel',

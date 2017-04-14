@@ -19,8 +19,8 @@
  * @link https://github.com/ondrejd/odwp-maintenance_mode for the canonical source repository
  * @link https://ondrejd.com/wordpress-plugins/odwp-maintenance_mode for the home page
  * @package odwp-maintenance_mode
- * 
- * @todo Before activating the plugin check if WooCommerce is installed!
+ *
+ * @todo Add English localization (as a default).
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
@@ -39,7 +39,7 @@ if ( ! function_exists( 'odwpmm_get_customize_settings' ) ) :
      */
     function odwpmm_get_customize_settings() {
         return [
-            'enabled' => [ 'type' => 'option', 'default' => true ],
+            'enabled' => [ 'type' => 'option', 'default' => false ],
             'role' => [ 'type' => 'option', 'default', 'admin' ], // Either "admin" or "editor".
             'background' => [ 'type' => 'option', 'default' => 'color' ], // Either "color" or "image".
             'background_color' => [ 'type' => 'option', 'default' => '#fff' ],
@@ -57,6 +57,7 @@ if ( ! function_exists( 'odwpmm_get_customize_settings' ) ) :
     }
 endif;
 
+
 if ( ! function_exists( 'odwpmm_customize_register' ) ) :
     /**
      * Action on hook 'customize_register'.
@@ -64,7 +65,7 @@ if ( ! function_exists( 'odwpmm_customize_register' ) ) :
      * @param WP_Customize_Manager $wp_customize
      * @return WP_Customize_Manager Updated customizer manager.
      */
-    function odwpmm_customize_register( $wp_customize ) {
+    function odwpmm_customize_register( WP_Customize_Manager $wp_customize ) {
         // Add settings
         foreach( $settings = odwpmm_get_customize_settings() as $key => $val ) {
             $wp_customize->add_setting( sprintf( '%s[%s]', ODWPMM_SLUG, $key ), $val );
@@ -164,3 +165,52 @@ endif;
 add_action( 'customize_register', 'odwpmm_customize_register' );
 
 
+if ( ! function_exists( 'odwpmm_pre_get_posts' ) ) :
+    /**
+     * Render maintenance page if maintenance mode is enabled.
+     * @param WP_Query $query
+     */
+    function odwpmm_pre_get_posts(WP_Query $query ) {
+        $options = (array) get_option( ODWPMM_SLUG );
+        $enabled = array_key_exists( 'enabled', $options ) ? (bool) $options['enabled'] : false;
+
+        if ( $enabled === true ) {
+            header( 'Content-type: text/html;charset=utf8' );
+?>
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>XXX</title>
+    </head>
+    <body>
+        <h1>Maintenance mode</h1>
+    </body>
+</html>
+<?php
+            exit();
+        }
+
+        return $query;
+    }
+endif;
+
+add_action( 'pre_get_posts', 'odwpmm_pre_get_posts' );
+
+
+if ( ! function_exists( 'odwpmm_customizer_live_preview' ) ) :
+    /**
+     * Load our JavaScript when Customizer is starting.
+     */
+    function odwpmm_customizer_live_preview() {
+        wp_enqueue_script(
+                'odwp-maintenance_mode',
+                plugin_dir_url( __FILE__ ) . '/js/odwp-maintenance_mode.js',
+                array( 'jquery', 'customize-preview' ),
+                '1.0.0',
+                true
+        );
+    }
+endif;
+
+add_action( 'customize_preview_init', 'odwpmm_pre_get_posts' );

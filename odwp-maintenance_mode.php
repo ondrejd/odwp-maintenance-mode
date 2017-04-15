@@ -20,7 +20,11 @@
  * @link https://ondrejd.com/wordpress-plugins/odwp-maintenance_mode for the home page
  * @package odwp-maintenance_mode
  *
+ * @link https://developer.wordpress.org/themes/customize-api/
+ * @link https://code.tutsplus.com/tutorials/customizer-javascript-apis-getting-started--cms-26838
+ * 
  * @todo Add English localization (as a default).
+ * 
  */
 
 if ( ! defined( 'ABSPATH' ) ) {

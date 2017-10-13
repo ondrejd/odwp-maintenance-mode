@@ -1,30 +1,28 @@
-=== Maintenance Mode for Customizer ===
+=== Maintenance Mode ===
 Contributors: ondrejd
 Donate link: https://www.paypal.me/ondrejd
 Tags: maintenance,maintenance mode,customize,customizer
 Requires at least: 4.7
-Tested up to: 4.7.3
+Tested up to: 4.8.2
 Stable tag: 1.0.0
 
-Maintenance mode with settings included in theme customizer.
+WordPress plugin that offers maintenance mode customizable in theme customizer.
 
 == Description ==
 
 Main features:
 
-* ...
-* ...
-* ...
-* offers English and Czech locales
+* maintenance mode for your site,
+* settings are available through traditional options page or theme customizer,
+* Czech and English localization.
 
 == Installation ==
 
-This section describes how to install the plugin and get it working.
+Here are few steps to install the plugin:
 
-1. Upload plugin's folder `od-maintenance_mode` to the `/wp-content/plugins/` directory
-2. Activate the plugin through the 'Plugins' menu in WordPress
-3. Set up the plugin and its widgets
-4. For other details see [plugin's home page](https://ondrejd.com/wordpress-plugins/odwp-maintenance_mode)
+1. Download archive from the Releases page in plugin's repository
+2. Unpack the archvie into your `/wp-content/plugins/` directory
+3. Activate the plugin through the Plugins menu in WordPress
 
 == Screenshots ==
 

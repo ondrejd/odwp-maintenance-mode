@@ -57,20 +57,17 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          */
         public function get_customize_settings() {
             return [
-                'enabled' => [ 'type' => 'option', 'default' => false ],
-                'role' => [ 'type' => 'option', 'default', 'admin' ], // Either "admin" or "editor".
-                'background' => [ 'type' => 'option', 'default' => 'color' ], // Either "color" or "image".
+                'enabled'          => [ 'type' => 'option', 'default' => false ],
+                'role'             => [ 'type' => 'option', 'default' => 'admin' ], //["admin","editor"]
+                'background'       => [ 'type' => 'option', 'default' => 'color' ], //["color", "image"]
                 'background_color' => [ 'type' => 'option', 'default' => '#fff' ],
                 'background_image' => [ 'type' => 'option', 'default' => '' ],
-                'title' => [ 'type' => 'option', 'default' => '' ],
-                'title_color' => [ 'type' => 'option', 'default' => '#000' ],
-                'body' => [
-                    'type' => 'option',
-                    'default' => __( 'Omlouváme se, ale probíhá údržba.', 'odwp-maintenance_mode' )
-                ],
-                'body_color' => [ 'type' => 'option', 'default' => '#000' ],
-                'footer' => [ 'type' => 'option', 'default' => '' ],
-                'footer_color' => [ 'type' => 'option', 'default' => '#000' ],
+                'title'            => [ 'type' => 'option', 'default' => '' ],
+                'title_color'      => [ 'type' => 'option', 'default' => '#000' ],
+                'body'             => [ 'type' => 'option', 'default' => __( 'Omlouváme se, ale probíhá údržba.', 'odwp-maintenance_mode' ), ],
+                'body_color'       => [ 'type' => 'option', 'default' => '#000' ],
+                'footer'           => [ 'type' => 'option', 'default' => '' ],
+                'footer_color'     => [ 'type' => 'option', 'default' => '#000' ],
             ];
         }
 
@@ -78,113 +75,164 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          * Action on hook 'customize_register'.
          * @link https://developer.wordpress.org/reference/hooks/customize_register/
          * @param WP_Customize_Manager $wp_customize
-         * @return WP_Customize_Manager Updated customizer manager.
+         * @return void
          * @since 1.0.0
          */
         public function customize_register( WP_Customize_Manager $wp_customize ) {
             // Add settings
-            foreach( $settings = $this->get_customize_settings() as $key => $val ) {
-                $wp_customize->add_setting( sprintf( '%s[%s]', 'odwpmm', $key ), $val );
-            }
-
-            // Add panels
-            $wp_customize->add_panel( 'odwpmm-panel', [
-                'title' => __( 'Mód údržby', 'odwp-maintenance_mode' ),
-                'description' => __( 'Mód údržby je plugin, kterým přesměrujete návštěvníky vašich stránek na speciální stránku po celou dobu, kdy trvají úpravy.', 'odwp-maintenance_mode' ),
-                'priority' => 260,
-            ] );
-
+            $this->customize_register_settings( $wp_customize );
+            // Add structure
+            $this->customize_register_structure( $wp_customize );
             // Add sections
+            $this->customize_register_controls_section_1( $wp_customize );
+            $this->customize_register_controls_section_2( $wp_customize );
+            $this->customize_register_controls_section_3( $wp_customize );
+        }
+
+        /**
+         * @internal Registers settings for the theme customizer.
+         * @param WP_Customize_Manager $wp_customize
+         * @return void
+         * @since 1.0.0
+         */
+        private function customize_register_settings( WP_Customize_Manager $wp_customize ) {
+            foreach( $settings = $this->get_customize_settings() as $key => $val ) {
+                $id   = sprintf( '%s[%s]', 'odwpmm', $key );
+                $args = array_merge( [
+                    'capability' => 'edit_theme_options',
+                    'transport'  => 'refresh',// ["refresh","postMessage"]
+                ], $val );
+
+                $wp_customize->add_setting( $id, $val );
+            }
+        }
+
+        /**
+         * @internal Registers panels and settings for the theme customizer.
+         * @param WP_Customize_Manager $wp_customize
+         * @return void
+         * @since 1.0.0
+         */
+        private function customize_register_structure( WP_Customize_Manager $wp_customize ) {
+            // Panel
+            $wp_customize->add_panel( 'odwpmm-panel', [
+                'title'       => __( 'Mód údržby', 'odwp-maintenance_mode' ),
+                'description' => __( 'Mód údržby je plugin, kterým přesměrujete návštěvníky vašich stránek na speciální stránku po celou dobu, kdy trvají úpravy.', 'odwp-maintenance_mode' ),
+                'priority'    => 160,
+            ] );
+            // Sections
             $wp_customize->add_section( 'odwpmm-section1', [
-                'title' => __( 'Hlavní nastavení', 'odwp-maintenance_mode' ),
-                'panel' => 'odwpmm-panel',
+                'title'       => __( 'Hlavní nastavení', 'odwp-maintenance_mode' ),
+                'panel'       => 'odwpmm-panel',
             ] );
             $wp_customize->add_section( 'odwpmm-section2', [
-                'title' => __( 'Pozadí stránky', 'odwp-maintenance_mode' ),
-                'panel' => 'odwpmm-panel',
+                'title'       => __( 'Pozadí stránky', 'odwp-maintenance_mode' ),
+                'panel'       => 'odwpmm-panel',
             ] );
             $wp_customize->add_section( 'odwpmm-section3', [
-                'title' => __( 'Textový obsah', 'odwp-maintenance_mode' ),
+                'title'       => __( 'Textový obsah', 'odwp-maintenance_mode' ),
                 'description' => __( 'Zde můžete nastavit texty zobrazené na stránce údržby. Pokud některý z textů necháte prázdný nebude na stránce vyrendrován.', 'odwp-maintenance_mode' ),
-                'panel' => 'odwpmm-panel',
+                'panel'       => 'odwpmm-panel',
             ] );
+        }
 
-            // Add controls
+        /**
+         * @internal Registers controls for the first section.
+         * @param WP_Customize_Manager $wp_customize
+         * @return void
+         * @since 1.0.0
+         */
+        private function customize_register_controls_section_1( WP_Customize_Manager $wp_customize ) {
             $wp_customize->add_control( 'odwpmm[enabled]', [
-                'label' => __( 'Povolit mód údržby', 'odwp-maintenance_mode' ),
+                'label'       => __( 'Povolit mód údržby', 'odwp-maintenance_mode' ),
                 'description' => __( 'Zaškrtněte pokud chcete zobrazit stránku "Probíhá údržba" návštěvníkům vašeho webu.', 'odwp-maintenance_mode' ),
-                'type' => 'checkbox',
-                'section' => 'odwpmm-section1',
+                'section'     => 'odwpmm-section1',
+                'type'        => 'checkbox',
             ] );
             $wp_customize->add_control( 'odwpmm[role]', [
-                'label' => __( 'Přeskočit pro', 'odwp-maintenance_mode' ),
                 'description' => __( 'Vyberte jednu ze skupin uživatelů, pro které bude stránka údržby skrytá a zobrazí se jim tak normální web.', 'odwp-maintenance_mode' ),
-                'type' => 'select',
-                'choices' => [
-                    'admin' => __( 'Administrátoři', 'odwp-maintenance_mode' ),
-                    'editor' => __( 'Editoři a administrátoři', 'odwp-maintenance_mode' ),
+                'choices'     => [
+                    'admin'   => __( 'Administrátoři', 'odwp-maintenance_mode' ),
+                    'editor'  => __( 'Editoři a administrátoři', 'odwp-maintenance_mode' ),
                 ],
-                'section' => 'odwpmm-section1',
+                'label'       => __( 'Přeskočit pro', 'odwp-maintenance_mode' ),
+                'section'     => 'odwpmm-section1',
+                'type'        => 'select',
             ] );
+        }
+
+        /**
+         * @internal Registers controls for the second section.
+         * @param WP_Customize_Manager $wp_customize
+         * @return void
+         * @since 1.0.0
+         */
+        private function customize_register_controls_section_2( WP_Customize_Manager $wp_customize ) {
             $wp_customize->add_control( 'odwpmm[background]', [
-                'label' => __( 'Typ pozadí', 'odwp-maintenance_mode' ),
                 'description' => __( 'Vyberte jaký typ pozadí chcete použít - buď jednolitou barvu nebo vybraný obrázek.', 'odwp-maintenance_mode' ),
-                'type' => 'select',
-                'choices' => [
-                    'color' => __( 'Barva', 'odwp-maintenance_mode' ),
-                    'image' => __( 'Obrázek', 'odwp-maintenance_mode' ),
+                'choices'     => [
+                    'color'   => __( 'Barva', 'odwp-maintenance_mode' ),
+                    'image'   => __( 'Obrázek', 'odwp-maintenance_mode' ),
                 ],
-                'section' => 'odwpmm-section2',
+                'label'       => __( 'Typ pozadí', 'odwp-maintenance_mode' ),
+                'section'     => 'odwpmm-section2',
+                'type'        => 'select',
             ] );
             $wp_customize->add_control(
                 new WP_Customize_Color_Control( $wp_customize, 'odwpmm[background_color]', [
-                    'label' => __( 'Barva pozadí', 'odwp-maintenance_mode' ),
-                    'section' => 'odwpmm-section2',
+                    'label'     => __( 'Barva pozadí', 'odwp-maintenance_mode' ),
+                    'section'   => 'odwpmm-section2',
                 ] )
             );
             $wp_customize->add_control(
                 new WP_Customize_Media_Control( $wp_customize, 'odwpmm[background_image]', [
-                    'label' => __( 'Vybraný obrázek', 'odwp-maintenance_mode' ),
+                    'label'     => __( 'Vybraný obrázek', 'odwp-maintenance_mode' ),
                     'mime_type' => 'image',
-                    'section' => 'odwpmm-section2',
+                    'section'   => 'odwpmm-section2',
                 ] )
             );
+        }
 
+        /**
+         * @internal Registers controls for the third section.
+         * @param WP_Customize_Manager $wp_customize
+         * @return void
+         * @since 1.0.0
+         */
+        private function customize_register_controls_section_3( WP_Customize_Manager $wp_customize ) {
             $wp_customize->add_control( 'odwpmm[title]', [
-                'label' => __( 'Nadpis', 'odwp-maintenance_mode' ),
-                'type' => 'text',
+                'label'   => __( 'Nadpis', 'odwp-maintenance_mode' ),
+                'type'    => 'text',
                 'section' => 'odwpmm-section3',
             ] );
             $wp_customize->add_control( 'odwpmm[body]', [
-                'label' => __( 'Hlavní text', 'odwp-maintenance_mode' ),
-                'type' => 'textarea',
+                'label'   => __( 'Hlavní text', 'odwp-maintenance_mode' ),
+                'type'    => 'textarea',
                 'section' => 'odwpmm-section3',
             ] );
             $wp_customize->add_control( 'odwpmm[footer]', [
-                'label' => __( 'Patička', 'odwp-maintenance_mode' ),
-                'type' => 'textarea',
+                'label'   => __( 'Patička', 'odwp-maintenance_mode' ),
+                'type'    => 'textarea',
                 'section' => 'odwpmm-section3',
             ] );
             $wp_customize->add_control(
                 new WP_Customize_Color_Control( $wp_customize, 'odwpmm[title_color]', [
-                    'label' => __( 'Barva nadpisu', 'odwp-maintenance_mode' ),
-                    'section' => 'odwpmm-section3',
+                    'label'     => __( 'Barva nadpisu', 'odwp-maintenance_mode' ),
+                    'section'   => 'odwpmm-section3',
                 ] )
             );
             $wp_customize->add_control(
                 new WP_Customize_Color_Control( $wp_customize, 'odwpmm[body_color]', [
-                    'label' => __( 'Barva hlavního textu', 'odwp-maintenance_mode' ),
-                    'section' => 'odwpmm-section3',
+                    'label'     => __( 'Barva hlavního textu', 'odwp-maintenance_mode' ),
+                    'section'   => 'odwpmm-section3',
                 ] )
             );
             $wp_customize->add_control(
                 new WP_Customize_Color_Control( $wp_customize, 'odwpmm[footer_color]', [
-                    'label' => __( 'Barva patičky', 'odwp-maintenance_mode' ),
-                    'section' => 'odwpmm-section3',
+                    'label'     => __( 'Barva patičky', 'odwp-maintenance_mode' ),
+                    'section'   => 'odwpmm-section3',
                 ] )
             );
-
-            return $wp_customize;
         }
 
         /**
@@ -223,8 +271,20 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          * @uses get_option
          */
         public function pre_get_posts( WP_Query $query ) {
-            $options = ( array ) get_option( 'odwpmm' );
-            $enabled = array_key_exists( 'enabled', $options ) ? ( bool ) $options['enabled'] : false;
+            // Load Maintenance mode options
+            $options      = ( array ) get_option( 'odwpmm' );
+            $default      = $this->get_customize_settings();
+            $enabled      = array_key_exists( 'enabled', $options ) ? $options['enabled'] : $default['enabled']['default'];
+            $role         = array_key_exists( 'role', $options ) ? $options['role'] : $default['role']['default'];
+            $bckg         = array_key_exists( 'background', $options ) ? $options['background'] : $default['background']['default'];
+            $bckg_color   = array_key_exists( 'background_color', $options ) ? $options['background_color'] : $default['background_color']['default'];
+            $bckg_image   = array_key_exists( 'background_image', $options ) ? $options['background_image'] : $default['background_image']['default'];
+            $title        = array_key_exists( 'title', $options ) ? $options['title'] : $default['title']['default'];
+            $title_color  = array_key_exists( 'title_color', $options ) ? $options['title_color'] : $default['title_color']['default'];
+            $body         = array_key_exists( 'body', $options ) ? $options['body'] : $default['body']['default'];
+            $body_color   = array_key_exists( 'body_color', $options ) ? $options['body_color'] : $default['body_color']['default'];
+            $footer       = array_key_exists( 'footer', $options ) ? $options['footer'] : $default['footer']['default'];
+            $footer_color = array_key_exists( 'footer_color', $options ) ? $options['footer_color'] : $default['footer_color']['default'];
 
             if( $enabled === true ) {
                 header( 'Content-type: text/html;charset=utf8' );
@@ -233,10 +293,23 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
 <html>
     <head>
         <meta charset="utf-8">
-        <title>XXX</title>
+        <title><?php echo $title ?></title>
+        <style type="text/css">
+<?php if( $bckg == 'color' ) : ?>
+body { background-color: <?php echo $bckg_color ?>; }
+<?php else : ?>
+body { background-image: url( <?php echo $bckg_image ?> ); }
+<?php endif ?>
+        </style>
     </head>
     <body>
-        <h1>Maintenance mode</h1>
+        <div>
+            <header>
+                <h1><?php echo $title ?></h1>
+            </header>
+            <div>
+                <p><?php echo $body ?></p>
+            </div>
     </body>
 </html>
 <?php

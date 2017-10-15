@@ -16,8 +16,8 @@
  * @author  Ondřej Doněk, <ondrejd@gmail.com>
  * @license https://www.gnu.org/licenses/gpl-3.0.en.html GNU General Public License 3.0
  * @link https://github.com/ondrejd/odwp-maintenance_mode for the canonical source repository
- * @link https://ondrejd.com/wordpress-plugins/odwp-maintenance_mode for the home page
  * @package odwp-maintenance_mode
+ * @since 1.0.0
  *
  * @link https://developer.wordpress.org/themes/customize-api/
  * @link https://code.tutsplus.com/tutorials/customizer-javascript-apis-getting-started--cms-26838
@@ -37,18 +37,224 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
      * @since 1.0.0
      */
     class ODWP_Maintenance_Mode_Plugin {
+
+        /**
+         * @var string $basename
+         * @since 1.0.0
+         */
+        protected basename;
+
+        /**
+         * @var array $templates Array with page templates we are adding.
+         * @since 1.0.0
+         */
+        protected $templates;
+
+        /**
+         * @var boolean $enabled
+         * @since 1.0.0
+         */
+        protected $enabled;
+
+        /**
+         * @var string $role One of these ["admin","editor"].
+         * @since 1.0.0
+         */
+        protected $role;
+
+        /**
+         * @var string $background One of these ["color","image"].
+         * @since 1.0.0
+         */
+        protected $background;
+
+        /**
+         * @var string $background_color
+         * @since 1.0.0
+         */
+        protected $background_color;
+
+        /**
+         * @var string $background_image
+         * @since 1.0.0
+         */
+        protected $background_image;
+
+        /**
+         * @var string $title
+         * @since 1.0.0
+         */
+        protected $title;
+
+        /**
+         * @var string $title_color
+         * @since 1.0.0
+         */
+        protected $title_color;
+
+        /**
+         * @var string $body
+         * @since 1.0.0
+         */
+        protected $body;
+
+        /**
+         * @var string $body_color
+         * @since 1.0.0
+         */
+        protected $body_color;
+
+        /**
+         * @var string $footer
+         * @since 1.0.0
+         */
+        protected $footer;
+
+        /**
+         * @var string $footer_color
+         * @since 1.0.0
+         */
+        protected $footer_color;
+
         /**
          * Constructor.
          * @return void
          * @since 1.0.0
+         * @uses add_action
          * @uses add_filter
+         * @uses get_bloginfo
          * @uses plugin_basename
          */
         public function __construct() {
+            $this->basename = plugin_basename( __FILE__ );
+            $this->templates = [
+                'maintenance-mode-template.php' => __( 'Maintenance Mode', 'odwp-maintenance_mode' ),
+            ];
+
+            // Add a filter to the attributes metabox to inject template into the cache.
+            if( version_compare( floatval( get_bloginfo( 'version' ) ), '4.7', '<' ) ) {
+            	add_filter( 'page_attributes_dropdown_pages_args', [$this, 'register_page_template'] );
+            } else {
+            	add_filter( 'theme_page_templates', [$this, 'add_page_template'] );
+            }
+
+            // Add a filter to the save post to inject out template into the page cache
+            add_filter( 'wp_insert_post_data', [$this, 'register_page_template'] );
+
+            // Add a filter to the template include to determine if the page has our
+            // template assigned and return it's path
+            add_filter( 'template_include', [$this, 'view_page_template'] );
+
+            // Plugin's texdomain
+            add_action( 'init', [$this, 'load_plugin_textdomain'] );
+
+            // Theme Customizer
             add_action( 'customize_register', [$this, 'customize_register'] );
             add_action( 'customize_preview_init', [$this, 'live_preview'] );
             add_action( 'pre_get_posts', [$this, 'pre_get_posts'] );
-            add_filter( 'plugin_action_links_' . plugin_basename(__FILE__), [$this, 'plugin_action_links'] );
+
+            // Plugin actions link in "Administration > Plugins".
+            add_filter( "plugin_action_links_{$basename}", [$this, 'plugin_action_links'] );
+        }
+
+        /**
+         * Loads plugin textdomain.
+         * @return void
+         * @since 1.0.0
+         * @uses apply_filters
+         * @uses get_locale
+         * @uses load_textdomain
+         * @uses load_plugin_textdomain
+         */
+        public function load_plugin_textdomain() {
+			$domain = 'odwp-maintenance_mode';
+			$locale = apply_filters( 'plugin_locale', get_locale(), $domain );
+
+			load_textdomain( $domain, WP_LANG_DIR . "/{$domain}/{$domain}-{$locale}.mo" );
+			load_plugin_textdomain( $domain, false, dirname( __FILE__ ) . "/languages/{$domain}-{$locale}.mo" );
+        }
+
+        /**
+         * Adds our template to the pages cache in order to trick WordPress
+         * into thinking the template file exists where it doens't really exist.
+         * @param XXX $atts
+         * @return XXX
+         * @since 1.0.0
+         * @uses get_stylesheet
+         * @uses get_theme_root
+         * @uses wp_cache_add
+         * @uses wp_cache_delete
+         * @uses wp_get_theme
+         */
+        public function register_page_template( $atts ) {
+            // Create the key used for the themes cache
+            $cache_key = 'page_templates-' . md5( get_theme_root() . '/' . get_stylesheet() );
+
+            // Retrieve the cache list.
+            // If it doesn't exist, or it's empty prepare an array
+            $templates = wp_get_theme()->get_page_templates();
+            if ( empty( $templates ) ) {
+            	$templates = [];
+            }
+
+            // New cache, therefore remove the old one
+            wp_cache_delete( $cache_key , 'themes' );
+
+            // Now add our template to the list of templates by merging our templates
+            // with the existing templates array from the cache.
+            $templates = array_merge( $templates, $this->templates );
+
+            // Add the modified cache to allow WordPress to pick it up for listing
+            // available templates
+            wp_cache_add( $cache_key, $templates, 'themes', 1800 );
+
+            return $atts;
+        }
+
+        /**
+         * Adds our template to the page dropdown for v4.7+
+         * @param array $posts_templates
+         * @return array
+         * @since 1.0.0
+         */
+        public function add_page_template( $posts_templates ) {
+            $posts_templates = array_merge( $posts_templates, $this->templates );
+            return $posts_templates;
+        }
+        /**
+         * Checks if the template is assigned to the page
+         * @global WP_Post $post
+         * @param string $template
+         * @return string
+         * @since 1.0.0
+         * @uses get_post_meta
+         * @uses plugin_dir_path
+         */
+        public function view_page_template( $template ) {
+            // Get global post
+            global $post;
+
+            // Return template if post is empty
+            if ( ! $post ) {
+            	return $template;
+            }
+
+            // Return default template if we don't have a custom one defined
+            if ( ! isset( $this->templates[get_post_meta( $post->ID, '_wp_page_template', true )] ) ) {
+            	return $template;
+            }
+
+            $file = plugin_dir_path( __FILE__ ). get_post_meta( $post->ID, '_wp_page_template', true );
+
+            // Just to be safe, we check if the file exist first
+            if ( file_exists( $file ) ) {
+            	return $file;
+            } else {
+            	echo $file;
+            }
+
+            // Return template
+            return $template;
         }
 
         /**
@@ -264,59 +470,128 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
         }
 
         /**
+         * @internal Initializes options.
+         * @return void
+         * @since 1.0.0
+         * @uses get_option
+         */
+        protected function init_options() {
+            $current   = ( array ) get_option( 'odwpmm' );
+            $default   = $this->get_customize_settings();
+            $keys_arr  = array_keys( $default );
+
+            // Go through all arrays and set up properties of this class
+            array_walk( $keys_arr, function( $key ) use ( $current, $default ) {
+                if( array_key_exists( $key, $current ) ) {
+                    $this->$key = $current[$key];
+                } else {
+                    $this->$key = $default[$key]['default'];
+                }
+            } );
+        }
+
+        /**
          * Render maintenance page if maintenance mode is enabled.
          * @param WP_Query $query
          * @return WP_Query
          * @since 1.0.0
-         * @uses get_option
+         * @uses wp_get_current_user
          */
         public function pre_get_posts( WP_Query $query ) {
-            // Load Maintenance mode options
-            $options      = ( array ) get_option( 'odwpmm' );
-            $default      = $this->get_customize_settings();
-            $enabled      = array_key_exists( 'enabled', $options ) ? $options['enabled'] : $default['enabled']['default'];
-            $role         = array_key_exists( 'role', $options ) ? $options['role'] : $default['role']['default'];
-            $bckg         = array_key_exists( 'background', $options ) ? $options['background'] : $default['background']['default'];
-            $bckg_color   = array_key_exists( 'background_color', $options ) ? $options['background_color'] : $default['background_color']['default'];
-            $bckg_image   = array_key_exists( 'background_image', $options ) ? $options['background_image'] : $default['background_image']['default'];
-            $title        = array_key_exists( 'title', $options ) ? $options['title'] : $default['title']['default'];
-            $title_color  = array_key_exists( 'title_color', $options ) ? $options['title_color'] : $default['title_color']['default'];
-            $body         = array_key_exists( 'body', $options ) ? $options['body'] : $default['body']['default'];
-            $body_color   = array_key_exists( 'body_color', $options ) ? $options['body_color'] : $default['body_color']['default'];
-            $footer       = array_key_exists( 'footer', $options ) ? $options['footer'] : $default['footer']['default'];
-            $footer_color = array_key_exists( 'footer_color', $options ) ? $options['footer_color'] : $default['footer_color']['default'];
+            // Ensure that plugin's options are loaded
+            $this->init_options();
 
-            if( $enabled === true ) {
+            // Get current user
+            $user = wp_get_current_user();
+            // And gather allowed roles
+            $allowed_roles = ['administrator'];
+            if( $this->role == 'editor' ) {
+                $allowed_roles[] = 'editor';
+            }
+
+            // Render maintenance mode page in this cases:
+            // 1) if is enabled
+            // 2) if is theme customizer
+            // 3) or if user doesn't have specific roles.
+            if( $this->enabled === true && ( is_customize_preview() || array_intersect( $allowed_roles, $user->roles ) ) ); {
                 header( 'Content-type: text/html;charset=utf8' );
+                ob_start( function() {} );
+                $this->render_html();
+                echo ob_get_flush();
+                exit();
+
+                // XXX $query =
+            }
+
+            // If maintenance mode page wasn't rendered than continue as WP normally does.
+            return $query;
+        }
+
+        /**
+         * @internal Renders HTML for maintenance mode page.
+         * @return void
+         * @since 1.0.0
+         * @todo Add "lang" attribute to the "<html>" tag.
+         */
+        protected function render_html() {
 ?>
 <!DOCTYPE html>
 <html>
     <head>
         <meta charset="utf-8">
-        <title><?php echo $title ?></title>
-        <style type="text/css">
-<?php if( $bckg == 'color' ) : ?>
-body { background-color: <?php echo $bckg_color ?>; }
-<?php else : ?>
-body { background-image: url( <?php echo $bckg_image ?> ); }
-<?php endif ?>
-        </style>
+        <title><?php echo $this->title ?></title>
+        <?php wp_head() ?>
+        <style type="text/css"><?php echo PHP_EOL . $this->get_custom_css() ?></style>
     </head>
     <body>
-        <div>
-            <header>
-                <h1><?php echo $title ?></h1>
+        <div class="page-wrap">
+            <header class="header">
+                <h1><?php echo $this->title ?></h1>
             </header>
-            <div>
-                <p><?php echo $body ?></p>
+            <div class="content">
+                <div class="content-wrap">
+                    <p><?php echo $this->body ?></p>
+                </div>
             </div>
+            <footer class="footer">
+                <p><?php echo $this->footer ?></p>
+                <?php wp_footer() ?>
+            </footer>
+        </div>
     </body>
 </html>
 <?php
-                exit();
+        }
+
+        /**
+         * @internal Returns custom CSS for maintenance mode page.
+         * @return string
+         * @since 1.0.0
+         */
+        protected function get_custom_css() {
+            $css = '';
+
+            // <body>
+            if( $this->background == 'color' ) {
+                $css .= 'body { background-color: ' . $this->background_color . '; }' . PHP_EOL;
+            } else {
+                $css .= 'body { background-image: url( "' . $this->background_image . '" ); }' . PHP_EOL;
             }
 
-            return $query;
+            // Header
+            if( ! empty( $this->title_color ) ) {
+                $css .= '.header { color: ' . $this->title_color . '; }' . PHP_EOL;
+            }
+
+            // Content
+            if( ! empty( $this->body_color ) ) {
+                $css .= '.content { color: ' . $this->body_color . '; }' . PHP_EOL;
+            }
+
+            // Footer
+            $css .= '.footer { color: ' . $this->footer_color . '; }' . PHP_EOL;
+
+            return $css;
         }
     }
 endif;

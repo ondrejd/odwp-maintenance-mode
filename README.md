@@ -32,12 +32,18 @@ Here are few steps to install the plugin:
 
 ## TODO
 
-* [ ] finish the plugin,
-* [ ] finish both readme files,
-* [ ] Czech and English localization,
-* [ ] create some screenshots,
-* [ ] release on [GitHub][4],
-* [ ] blog/shop posts on [home page][5].
+* [ ] Finish the plugin:
+  - [ ] After activating plugin has to create new page "Maintenance mode"
+  - [ ] This page will be set to `WP_Query` in our hook to `pre_get_posts` action
+  - [ ] __Maintenance mode have to work inside the Theme Customizer!__
+* [ ] Finish both readme files
+* [x] ~~Enable localization~~
+* [ ] Finish Czech and English localization
+* [ ] Create some screenshots
+* [ ] Release on [GitHub][4]
+* [ ] Blog/shop posts on [home page][5]
+
+In future investigate how to support __WPMU__.
 
 [1]:https://wordpress.org/
 [2]:https://codex.wordpress.org/Theme_Customization_API

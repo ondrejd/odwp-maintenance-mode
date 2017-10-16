@@ -33,9 +33,11 @@ Here are few steps to install the plugin:
 ## TODO
 
 * [ ] Finish the plugin:
-  - [ ] After activating plugin has to create new page "Maintenance mode"
+  - [x] ~~After activating plugin has to create new page "Maintenance mode"~~
+    - [ ] __FIXME__: When "Maintenance mode" page exists but is in _Trash_ we should re-publish it
   - [ ] This page will be set to `WP_Query` in our hook to `pre_get_posts` action
   - [ ] __Maintenance mode have to work inside the Theme Customizer!__
+  - [ ] After deactivating should be "Maintenance mode" page moved to _Trash_ (with user confirmation)
 * [ ] Finish both readme files
 * [x] ~~Enable localization~~
 * [ ] Finish Czech and English localization

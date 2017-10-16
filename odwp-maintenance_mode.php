@@ -39,10 +39,16 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
     class ODWP_Maintenance_Mode_Plugin {
 
         /**
+         * @const string
+         * @since 1.0.0
+         */
+        const DEFAULT_TEMPLATE = 'maintenance-mode-template.php';
+
+        /**
          * @var string $basename
          * @since 1.0.0
          */
-        protected basename;
+        protected $basename;
 
         /**
          * @var array $templates Array with page templates we are adding.
@@ -128,22 +134,25 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
         public function __construct() {
             $this->basename = plugin_basename( __FILE__ );
             $this->templates = [
-                'maintenance-mode-template.php' => __( 'Maintenance Mode', 'odwp-maintenance_mode' ),
+                self::DEFAULT_TEMPLATE => __( 'Maintenance Mode', 'odwp-maintenance_mode' ),
             ];
+
+            register_activation_hook( __FILE__, [__CLASS__, 'activate'] );
+            register_deactivation_hook( __FILE__, [__CLASS__, 'deactivate'] );
 
             // Add a filter to the attributes metabox to inject template into the cache.
             if( version_compare( floatval( get_bloginfo( 'version' ) ), '4.7', '<' ) ) {
-            	add_filter( 'page_attributes_dropdown_pages_args', [$this, 'register_page_template'] );
+                add_filter( 'page_attributes_dropdown_pages_args', [$this, 'register_page_template'] );
             } else {
-            	add_filter( 'theme_page_templates', [$this, 'add_page_template'] );
+                add_filter( 'theme_page_templates', [$this, 'page_template_add'] );
             }
 
             // Add a filter to the save post to inject out template into the page cache
-            add_filter( 'wp_insert_post_data', [$this, 'register_page_template'] );
+            add_filter( 'wp_insert_post_data', [$this, 'page_template_register'] );
 
             // Add a filter to the template include to determine if the page has our
             // template assigned and return it's path
-            add_filter( 'template_include', [$this, 'view_page_template'] );
+            add_filter( 'template_include', [$this, 'page_template_view'] );
 
             // Plugin's texdomain
             add_action( 'init', [$this, 'load_plugin_textdomain'] );
@@ -151,10 +160,71 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
             // Theme Customizer
             add_action( 'customize_register', [$this, 'customize_register'] );
             add_action( 'customize_preview_init', [$this, 'live_preview'] );
-            add_action( 'pre_get_posts', [$this, 'pre_get_posts'] );
+            //add_action( 'pre_get_posts', [$this, 'pre_get_posts'] );
 
             // Plugin actions link in "Administration > Plugins".
-            add_filter( "plugin_action_links_{$basename}", [$this, 'plugin_action_links'] );
+            add_filter( "plugin_action_links_{$this->basename}", [$this, 'plugin_action_links'] );
+        }
+
+        /**
+         * @global int $user_ID
+         * @internal Activates the plugin.
+         * @link http://codex.wordpress.org/Function_Reference/wp_insert_post
+         * @link https://wordpress.stackexchange.com/questions/13378/add-custom-template-page-programmatically
+         * @link https://clicknathan.com/web-design/automatically-create-pages-wordpress/
+         * @return void
+         * @since 1.0.0
+         * @uses wp_die
+         * @uses wp_insert_post
+         * @uses update_post_meta
+         */
+        public static function activate() {
+            global $user_ID;
+
+            $meta_key = 'odwpmm-is_maintenance_mode_page';
+            $meta_value = 1;
+
+            // Check if page with slug `maintenance-mode` found.
+            // XXX What if exists but is moved to the trash?!
+            $query = new WP_Query( [
+                'post_type' => 'page',
+                'meta_key' => $meta_key,
+                'meta_value' => $meta_value
+            ] );
+
+            if( ! $query->have_posts() ) {
+                // Page doesn't exist create it (with correct template).
+                $new_page = [
+                    'post_title' => __( 'Maintenance Mode', 'odwp-maintenance_mode' ),
+                    'post_content' => __( '<h2>Maintenance Mode</h2><p>We are sorry but when is under development.</p>', 'odwp-maintenance_mode' ),
+                    'post_status' => 'publish',
+                    'post_date' => date( 'Y-m-d H:i:s' ),
+                    'post_author' => $user_ID,
+                    'post_type' => 'page',
+                    'comment_status' => 'closed',
+                    'ping_status' => 'closed',
+                    'meta_input' => [
+                        'odwpmm-is_maintenance_mode_page' => 1,
+                    ]
+                ];
+                $page_id = wp_insert_post( $new_page );
+
+                if( ! $page_id ) {
+                    wp_die( __( 'Error creating template page', 'odwp-maintenance_mode' ) );
+                } else {
+                    // Set up page template
+                    update_post_meta( $page_id, '_wp_page_template', self::DEFAULT_TEMPLATE );
+                }
+            }
+        }
+
+        /**
+         * @internal Deactivates the plugin.
+         * @return void
+         * @since 1.0.0
+         */
+        public static function deactivate() {
+            // XXX On user confirmation move page "Maintenance mode" to the Trash.
         }
 
         /**
@@ -177,8 +247,8 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
         /**
          * Adds our template to the pages cache in order to trick WordPress
          * into thinking the template file exists where it doens't really exist.
-         * @param XXX $atts
-         * @return XXX
+         * @param array $atts
+         * @return array
          * @since 1.0.0
          * @uses get_stylesheet
          * @uses get_theme_root
@@ -186,14 +256,14 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          * @uses wp_cache_delete
          * @uses wp_get_theme
          */
-        public function register_page_template( $atts ) {
+        public function page_template_register( $atts ) {
             // Create the key used for the themes cache
             $cache_key = 'page_templates-' . md5( get_theme_root() . '/' . get_stylesheet() );
 
             // Retrieve the cache list.
             // If it doesn't exist, or it's empty prepare an array
             $templates = wp_get_theme()->get_page_templates();
-            if ( empty( $templates ) ) {
+            if( empty( $templates ) ) {
             	$templates = [];
             }
 
@@ -217,7 +287,7 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          * @return array
          * @since 1.0.0
          */
-        public function add_page_template( $posts_templates ) {
+        public function page_template_add( $posts_templates ) {
             $posts_templates = array_merge( $posts_templates, $this->templates );
             return $posts_templates;
         }
@@ -230,24 +300,24 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          * @uses get_post_meta
          * @uses plugin_dir_path
          */
-        public function view_page_template( $template ) {
+        public function page_template_view( $template ) {
             // Get global post
             global $post;
 
             // Return template if post is empty
-            if ( ! $post ) {
+            if( ! $post ) {
             	return $template;
             }
 
             // Return default template if we don't have a custom one defined
-            if ( ! isset( $this->templates[get_post_meta( $post->ID, '_wp_page_template', true )] ) ) {
+            if( ! isset( $this->templates[get_post_meta( $post->ID, '_wp_page_template', true )] ) ) {
             	return $template;
             }
 
-            $file = plugin_dir_path( __FILE__ ). get_post_meta( $post->ID, '_wp_page_template', true );
+            $file = plugin_dir_path( __FILE__ ) . get_post_meta( $post->ID, '_wp_page_template', true );
 
             // Just to be safe, we check if the file exist first
-            if ( file_exists( $file ) ) {
+            if( file_exists( $file ) ) {
             	return $file;
             } else {
             	echo $file;
@@ -498,6 +568,7 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          * @uses wp_get_current_user
          */
         public function pre_get_posts( WP_Query $query ) {
+odwpdl_write_log( 'ODWP_Maintenance_Mode_Plugin::pre_get_posts' );
             // Ensure that plugin's options are loaded
             $this->init_options();
 
@@ -513,54 +584,17 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
             // 1) if is enabled
             // 2) if is theme customizer
             // 3) or if user doesn't have specific roles.
-            if( $this->enabled === true && ( is_customize_preview() || array_intersect( $allowed_roles, $user->roles ) ) ); {
+            if( $this->enabled === true && ( ! is_customize_preview() || array_intersect( $allowed_roles, $user->roles ) ) ); {
+                odwpdl_write_log( 'XXX We need to customize WP_Query!' );
                 header( 'Content-type: text/html;charset=utf8' );
                 ob_start( function() {} );
-                $this->render_html();
+                include( 'templates/maintenance-mode-template.php'   );
                 echo ob_get_flush();
                 exit();
-
-                // XXX $query =
             }
 
             // If maintenance mode page wasn't rendered than continue as WP normally does.
             return $query;
-        }
-
-        /**
-         * @internal Renders HTML for maintenance mode page.
-         * @return void
-         * @since 1.0.0
-         * @todo Add "lang" attribute to the "<html>" tag.
-         */
-        protected function render_html() {
-?>
-<!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="utf-8">
-        <title><?php echo $this->title ?></title>
-        <?php wp_head() ?>
-        <style type="text/css"><?php echo PHP_EOL . $this->get_custom_css() ?></style>
-    </head>
-    <body>
-        <div class="page-wrap">
-            <header class="header">
-                <h1><?php echo $this->title ?></h1>
-            </header>
-            <div class="content">
-                <div class="content-wrap">
-                    <p><?php echo $this->body ?></p>
-                </div>
-            </div>
-            <footer class="footer">
-                <p><?php echo $this->footer ?></p>
-                <?php wp_footer() ?>
-            </footer>
-        </div>
-    </body>
-</html>
-<?php
         }
 
         /**

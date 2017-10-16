@@ -38,6 +38,7 @@ Here are few steps to install the plugin:
   - [ ] This page will be set to `WP_Query` in our hook to `pre_get_posts` action
   - [ ] __Maintenance mode have to work inside the Theme Customizer!__
   - [ ] After deactivating should be "Maintenance mode" page moved to _Trash_ (with user confirmation)
+  - [ ] Remove all setings on uninstall hook
 * [ ] Finish both readme files
 * [x] ~~Enable localization~~
 * [ ] Finish Czech and English localization

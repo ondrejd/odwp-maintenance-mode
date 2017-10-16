@@ -39,6 +39,12 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
     class ODWP_Maintenance_Mode_Plugin {
 
         /**
+         * @const string Meta key that identifies page as "Maintance mode" page.
+         * @since 1.0.0
+         */
+        const DEFAULT_META_KEY = 'odwpmm-is_maintenance_mode_page';
+
+        /**
          * @const string
          * @since 1.0.0
          */
@@ -139,6 +145,7 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
 
             register_activation_hook( __FILE__, [__CLASS__, 'activate'] );
             register_deactivation_hook( __FILE__, [__CLASS__, 'deactivate'] );
+            register_uninstall_hook( __FILE__, [__CLASS__, 'uninstall'] );
 
             // Add a filter to the attributes metabox to inject template into the cache.
             if( version_compare( floatval( get_bloginfo( 'version' ) ), '4.7', '<' ) ) {
@@ -167,6 +174,28 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
         }
 
         /**
+         * @return WP_Post|null
+         * @since 1.0.0
+         */
+        public static function get_maintenance_mode_page() {
+            $query = new WP_Query( [
+                'post_type' => 'page',
+                'meta_key' => self::DEFAULT_META_KEY,
+                'meta_value' => 1,
+            ] );
+
+            if( $query->post_count <= 0 ) {
+                return null;
+            }
+
+            if( $query->post_count > 0 ) {
+                // XXX Show an admin notice when there is more than one "Maintanence mode" page.
+            }
+
+            return $query->posts[0];
+        }
+
+        /**
          * @global int $user_ID
          * @internal Activates the plugin.
          * @link http://codex.wordpress.org/Function_Reference/wp_insert_post
@@ -181,40 +210,36 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
         public static function activate() {
             global $user_ID;
 
-            $meta_key = 'odwpmm-is_maintenance_mode_page';
-            $meta_value = 1;
+            // Check if page with slug `maintenance-mode` exists
+            $mm_page = self::get_maintenance_mode_page();
 
-            // Check if page with slug `maintenance-mode` found.
-            // XXX What if exists but is moved to the trash?!
-            $query = new WP_Query( [
+            // If page exists just return
+            if( ( $mm_page instanceof WP_Post ) ) {
+                // XXX What if exists but its status isn't "publish"?!
+                return;
+            }
+
+            // Page doesn't exist create it (with correct template).
+            $new_page = [
+                'post_title' => __( 'Maintenance Mode', 'odwp-maintenance_mode' ),
+                'post_content' => __( '<h2>Maintenance Mode</h2><p>We are sorry but when is under development.</p>', 'odwp-maintenance_mode' ),
+                'post_status' => 'publish',
+                'post_date' => date( 'Y-m-d H:i:s' ),
+                'post_author' => $user_ID,
                 'post_type' => 'page',
-                'meta_key' => $meta_key,
-                'meta_value' => $meta_value
-            ] );
+                'comment_status' => 'closed',
+                'ping_status' => 'closed',
+                'meta_input' => [
+                    self::DEFAULT_META_KEY => 1,
+                ],
+            ];
+            $page_id = wp_insert_post( $new_page );
 
-            if( ! $query->have_posts() ) {
-                // Page doesn't exist create it (with correct template).
-                $new_page = [
-                    'post_title' => __( 'Maintenance Mode', 'odwp-maintenance_mode' ),
-                    'post_content' => __( '<h2>Maintenance Mode</h2><p>We are sorry but when is under development.</p>', 'odwp-maintenance_mode' ),
-                    'post_status' => 'publish',
-                    'post_date' => date( 'Y-m-d H:i:s' ),
-                    'post_author' => $user_ID,
-                    'post_type' => 'page',
-                    'comment_status' => 'closed',
-                    'ping_status' => 'closed',
-                    'meta_input' => [
-                        'odwpmm-is_maintenance_mode_page' => 1,
-                    ]
-                ];
-                $page_id = wp_insert_post( $new_page );
-
-                if( ! $page_id ) {
-                    wp_die( __( 'Error creating template page', 'odwp-maintenance_mode' ) );
-                } else {
-                    // Set up page template
-                    update_post_meta( $page_id, '_wp_page_template', self::DEFAULT_TEMPLATE );
-                }
+            if( ! $page_id ) {
+                wp_die( __( 'Error creating template page', 'odwp-maintenance_mode' ) );
+            } else {
+                // Set up page template
+                update_post_meta( $page_id, '_wp_page_template', self::DEFAULT_TEMPLATE );
             }
         }
 
@@ -225,6 +250,15 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          */
         public static function deactivate() {
             // XXX On user confirmation move page "Maintenance mode" to the Trash.
+        }
+
+        /**
+         * @internal Uninstalls the plugin.
+         * @return void
+         * @since 1.0.0
+         */
+        public static function uninstall() {
+            // XXX Remove all settings.
         }
 
         /**
@@ -568,7 +602,6 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
          * @uses wp_get_current_user
          */
         public function pre_get_posts( WP_Query $query ) {
-odwpdl_write_log( 'ODWP_Maintenance_Mode_Plugin::pre_get_posts' );
             // Ensure that plugin's options are loaded
             $this->init_options();
 
@@ -586,11 +619,11 @@ odwpdl_write_log( 'ODWP_Maintenance_Mode_Plugin::pre_get_posts' );
             // 3) or if user doesn't have specific roles.
             if( $this->enabled === true && ( ! is_customize_preview() || array_intersect( $allowed_roles, $user->roles ) ) ); {
                 odwpdl_write_log( 'XXX We need to customize WP_Query!' );
-                header( 'Content-type: text/html;charset=utf8' );
+                /*header( 'Content-type: text/html;charset=utf8' );
                 ob_start( function() {} );
                 include( 'templates/maintenance-mode-template.php'   );
                 echo ob_get_flush();
-                exit();
+                exit();*/
             }
 
             // If maintenance mode page wasn't rendered than continue as WP normally does.

@@ -161,7 +161,7 @@ if( ! class_exists( 'ODWP_Maintenance_Mode_Plugin' ) ) :
             // template assigned and return it's path
             add_filter( 'template_include', [$this, 'page_template_view'] );
 
-            // Plugin's texdomain
+            // Plugin's textdomain
             add_action( 'init', [$this, 'load_plugin_textdomain'] );
 
             // Theme Customizer
